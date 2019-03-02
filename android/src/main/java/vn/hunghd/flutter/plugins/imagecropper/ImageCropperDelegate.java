@@ -2,11 +2,10 @@ package vn.hunghd.flutter.plugins.imagecropper;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 
-import com.yalantis.ucrop.UCrop;
+import com.theartofdev.edmodo.cropper.CropImage;
 
 import java.io.File;
 import java.util.Date;
@@ -30,55 +29,37 @@ public class ImageCropperDelegate implements PluginRegistry.ActivityResultListen
 
     public void startCrop(MethodCall call, MethodChannel.Result result) {
         String sourcePath = call.argument("source_path");
-        Integer maxWidth = call.argument("max_width");
-        Integer maxHeight = call.argument("max_height");
-        Double ratioX = call.argument("ratio_x");
-        Double ratioY = call.argument("ratio_y");
         String title = call.argument("toolbar_title");
         Long color = call.argument("toolbar_color");
-        Boolean circleShape = call.argument("circle_shape");
         methodCall = call;
         pendingResult = result;
 
         File outputDir = activity.getCacheDir();
-        File outputFile = new File(outputDir, "image_cropper_" + (new Date()).getTime() + ".jpg");
+        File outputFile = new File(outputDir, "scan_" + (new Date()).getTime() + ".jpg");
 
         Uri sourceUri = Uri.fromFile(new File(sourcePath));
         Uri destinationUri = Uri.fromFile(outputFile);
-        UCrop.Options options = new UCrop.Options();
-        options.setCompressionFormat(Bitmap.CompressFormat.JPEG);
-        if (circleShape) {
-            options.setCircleDimmedLayer(true);
-        }
-        options.setCompressionQuality(90);
-        if (title != null) {
-            options.setToolbarTitle(title);
-        }
+        CropImage.ActivityBuilder activityBuilder = CropImage.activity(sourceUri).setAllowFlipping(false)
+                .setOutputUri(destinationUri);
         if (color != null) {
             int intColor = color.intValue();
-            options.setToolbarColor(intColor);
-            options.setStatusBarColor(darkenColor(intColor));
         }
-        UCrop cropper = UCrop.of(sourceUri, destinationUri).withOptions(options);
-        if (maxWidth != null && maxHeight != null) {
-            cropper.withMaxResultSize(maxWidth, maxHeight);
+        if (title != null) {
+            activityBuilder.setActivityTitle(title);
         }
-        if (ratioX != null && ratioY != null) {
-            cropper.withAspectRatio(ratioX.floatValue(), ratioY.floatValue());
-        }
-        cropper.start(activity);
+        activityBuilder.start(activity);
     }
-
     @Override
     public boolean onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == UCrop.REQUEST_CROP) {
+        if (requestCode == CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE) {
+            CropImage.ActivityResult result = CropImage.getActivityResult(data);
             if (resultCode == RESULT_OK) {
-                final Uri resultUri = UCrop.getOutput(data);
+                Uri resultUri = result.getUri();
                 finishWithSuccess(fileUtils.getPathFromUri(activity, resultUri));
                 return true;
-            } else if (resultCode == UCrop.RESULT_ERROR) {
-                final Throwable cropError = UCrop.getError(data);
-                finishWithError("crop_error", cropError.getLocalizedMessage(), cropError);
+            } else if (resultCode == CropImage.CROP_IMAGE_ACTIVITY_RESULT_ERROR_CODE) {
+                Exception error = result.getError();
+                finishWithError("crop_error", error.getLocalizedMessage(), error);
                 return true;
             } else {
                 pendingResult.success(null);
@@ -91,6 +72,7 @@ public class ImageCropperDelegate implements PluginRegistry.ActivityResultListen
 
     private void finishWithSuccess(String imagePath) {
         pendingResult.success(imagePath);
+        System.out.println(imagePath);
         clearMethodCallAndResult();
     }
 
